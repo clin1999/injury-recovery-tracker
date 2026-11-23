@@ -1,0 +1,12 @@
+# OS clutter
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor and tool settings
+.vscode/
+.idea/
+.claude/settings.local.json
+
+# Garmin exports contain personal activity data; keep them out of the repo
+*.csv

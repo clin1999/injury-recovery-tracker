@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en-NZ">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ITB recovery tracker</title>
+<meta name="description" content="An 8-week, pain-guided return-to-running tracker.">
+<meta name="theme-color" content="#0E5C57" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#4FB3A9" media="(prefers-color-scheme: dark)">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ITB tracker">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="src/styles.css">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="tabs" role="tablist" aria-label="View">
+      <button role="tab" id="tab-week" aria-controls="view-week" aria-selected="true">Week</button>
+      <button role="tab" id="tab-month" aria-controls="view-month" aria-selected="false" tabindex="-1">Month</button>
+    </div>
+    <div class="weekrow">
+      <button class="step" id="prev" aria-label="Previous week">‹</button>
+      <h1 class="cond" id="wk">Week 1<small>of 8</small></h1>
+      <button class="step" id="next" aria-label="Next week">›</button>
+    </div>
+    <div class="bar"><span id="barfill"></span></div>
+    <div class="sub"><span id="progtxt">0 of 7 days done</span><span id="target">Run target 3.0 km</span></div>
+  </header>
+
+  <div id="view-week" role="tabpanel" aria-labelledby="tab-week">
+    <div id="banner"></div>
+    <div id="days"></div>
+    <div class="summary" id="summary"></div>
+  </div>
+
+  <div id="view-month" role="tabpanel" aria-labelledby="tab-month" hidden></div>
+
+  <section class="settings" aria-labelledby="set-h">
+    <h2 class="cond" id="set-h">Settings</h2>
+    <div class="field">
+      <label for="start">Programme start date</label>
+      <input class="km datein" id="start" type="date">
+      <small id="startnote"></small>
+    </div>
+    <div class="field">
+      <label for="base">Starting run distance (km)</label>
+      <input class="km" id="base" type="number" step="0.5" min="0.5" inputmode="decimal">
+    </div>
+    <div class="field">
+      <span class="flabel" id="g-h">Runs from Garmin</span>
+      <label class="btn filebtn" id="gpick"><input type="file" id="gfile" class="sr" accept=".csv,text/csv" aria-describedby="gnote">Import Garmin CSV</label>
+      <small id="gnote"></small>
+      <details class="help">
+        <summary>How to export from Garmin Connect</summary>
+        <ol>
+          <li>Sign in at connect.garmin.com, ideally on a computer.</li>
+          <li>Go to Activities, then All activities.</li>
+          <li>Scroll down until the list reaches your programme start date, so older runs are included.</li>
+          <li>Select Export CSV at the top of the list.</li>
+          <li>Save the file somewhere your phone can open it, such as iCloud Drive or Google Drive, then choose it here.</li>
+        </ol>
+        <p>The file is read on this device and isn’t uploaded anywhere. Distances and dates come across. Pain scores don’t, so add those yourself.</p>
+      </details>
+    </div>
+    <div class="field"><button class="link" id="reset">Clear this week</button></div>
+  </section>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<dialog class="sheet" id="gdlg" aria-labelledby="gdlg-h">
+  <h2 class="cond" id="gdlg-h">Import from Garmin</h2>
+  <div id="gdlg-body"></div>
+  <div class="sheet-actions">
+    <button class="btn ghost" id="gcancel" type="button">Cancel</button>
+    <button class="btn" id="gok" type="button">Import</button>
+  </div>
+</dialog>
+
+<script src="src/plan.js"></script>
+<script src="src/dates.js"></script>
+<script src="src/month.js"></script>
+<script src="src/garmin.js"></script>
+<script src="src/app.js"></script>
+</body>
+</html>
