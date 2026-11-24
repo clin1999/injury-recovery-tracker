@@ -127,7 +127,7 @@ function showGarmin(){
   const skip=[];
   if(p.before) skip.push(plural(p.before,'run')+' before the start date');
   if(p.after) skip.push(plural(p.after,'run')+' after week 8');
-  if(p.extra) skip.push(plural(p.extra,'extra run')+' in weeks that already had 3');
+  if(p.extra) skip.push(plural(p.extra,'extra run')+' in weeks that already had '+PLAN.filter(d=>d.run).length);
   if(p.bad) skip.push(plural(p.bad,'run')+' with no date or distance');
   let foot='';
   if(skip.length) foot+='Skipped '+skip.join(', ')+'. ';

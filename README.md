@@ -1,8 +1,18 @@
 # ITB recovery tracker
 
-An 8-week, pain-guided return-to-running tracker with illustrated exercise instructions.
+An 8-week, pain-guided return-to-running tracker with illustrated exercise instructions, built around a full gym week:
 
-- **Week tab:** tick off each day's strength, mobility and run tasks, log distance and pain, and get a verdict on each run and on the week.
+| Day | Session |
+|---|---|
+| Mon | Legs A: ITB strength work |
+| Tue | Push (chest, shoulders, triceps) and a short easy run |
+| Wed | Badminton, with a hip warm-up and stretches |
+| Thu | Legs B: ITB strength work and core |
+| Fri | Pull (back, biceps) and core |
+| Sat | 5k run |
+| Sun | Lighter full body and easy cardio |
+
+- **Week tab:** tick off each day's exercises, log distance and pain for the two runs, and get a verdict on each run and on the week.
 - **Month tab:** see four weeks at a glance, with distance against target, worst pain per week and whether pain is easing.
 - **Garmin import:** fill in run distances from a Garmin Connect CSV export. The file is read on your phone and never uploaded.
 - **Backup and restore:** save your logs to a file and bring them back on a new phone.

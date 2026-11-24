@@ -1,7 +1,7 @@
 // Offline support. The app's own files are cached on first visit and served from the cache straight
 // away (handy with patchy signal at the gym), while a fresh copy is fetched in the background for next time.
 // Bump CACHE when the file list changes. Logged data lives in localStorage, not here.
-const CACHE='itb-v2';
+const CACHE='itb-v3';
 const FILES=['./','index.html','manifest.webmanifest','src/styles.css','src/plan.js','src/dates.js','src/month.js','src/garmin.js','src/backup.js','src/app.js','icons/icon.svg','icons/icon-192.png','icons/icon-512.png','icons/apple-touch-icon.png'];
 
 self.addEventListener('install',e=>{

@@ -5,16 +5,50 @@
 // Keep every saved log, but repair top-level fields so bad data can't break rendering.
 // Used when loading from storage and when restoring a backup.
 function normalise(s){
-  const st=Object.assign({week:1,base:3,start:null,lastBackup:null,weeks:{}},s&&typeof s==='object'?s:{});
+  const saved=s&&typeof s==='object';
+  // Data saved before plan versions existed belongs to plan 1.
+  const st=Object.assign({week:1,base:3,start:null,lastBackup:null,weeks:{},plan:saved?1:PLAN_VERSION},saved?s:{});
   const w=parseInt(st.week,10); st.week=w>=1&&w<=8?w:1;
   const b=parseFloat(st.base); st.base=b>0?b:3;
   if(!st.weeks||typeof st.weeks!=='object'||Array.isArray(st.weeks)) st.weeks={};
   if(isoToNum(st.start)==null) st.start=null;
   if(isoToNum(st.lastBackup)==null) st.lastBackup=null;
+  return migrate(st);
+}
+// Move logs from older plans onto the current one. Task ticks are stored by position, so each step maps old
+// positions to new ones. Run logs (km, pain) follow the runs.
+function migrate(st){
+  if(!(st.plan<2)) return st;
+  // Plan 1 → 2. Mon and Thu keep their tasks in the same order (Thu gains dead bug at the end). Tue keeps its
+  // warm-up and run. Wed's mobility ticks map onto the new stretches and ball release. The old Fri and Sun runs
+  // were the long ones, so Sunday's run (or Friday's, if Sunday has none) becomes Saturday's 5k. Fri and Sun
+  // are gym days now and start empty. Sat was rest, so its old tick is dropped.
+  const isRun=d=>d&&typeof d==='object'&&(d.pd!=null||parseFloat(d.km)>0);
+  Object.keys(st.weeks).forEach(k=>{
+    const W=st.weeks[k]; if(!W||typeof W!=='object') return;
+    const T=i=>W[i]&&Array.isArray(W[i].tasks)?W[i].tasks:[];
+    if(W[2]&&typeof W[2]==='object'){const t=T(2); W[2]={tasks:[false,false,!!(t[1]&&t[2]),!!t[0]]};}
+    const src=[6,4].find(i=>isRun(W[i]));
+    const sat={tasks:[]};
+    if(src!=null){
+      sat.tasks=[!!T(src)[0],!!T(src)[1],false];
+      ['km','pd','pn'].forEach(f=>{if(W[src][f]!=null) sat[f]=W[src][f];});
+    }
+    W[5]=sat;
+    if(W[4]) W[4]={tasks:[]};
+    if(W[6]) W[6]={tasks:[]};
+  });
+  st.plan=2;
   return st;
 }
 let state=normalise(null);
-try{state=normalise(JSON.parse(localStorage.getItem(KEY)));}catch(e){}
+try{
+  const raw=localStorage.getItem(KEY), parsed=raw?JSON.parse(raw):null;
+  // Before a plan migration rewrites the logs, keep an untouched copy under its own key.
+  if(parsed&&typeof parsed==='object'&&!(parsed.plan>=PLAN_VERSION)) localStorage.setItem(KEY+'-before-plan'+PLAN_VERSION,raw);
+  state=normalise(parsed);
+  if(parsed&&parsed.plan!==state.plan) save();
+}catch(e){}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){}}
 // dayAt creates the entry if it's missing; use peek() from month.js to read without creating.
 function dayAt(wn,i){
@@ -23,8 +57,11 @@ function dayAt(wn,i){
   return w[i];
 }
 function dayData(i){return dayAt(state.week,i);}
-function targetFor(w){return state.base*Math.pow(1.1,w-1);}
-function targetKm(){return targetFor(state.week);}
+// Saturday is a fixed 5k. The short Tuesday run starts at `base` and adds about 10% a week, capped so it stays short.
+const FIVE_K=5, SHORT_CAP=4;
+function runTarget(w,p){return p.run==='5k'?FIVE_K:Math.min(SHORT_CAP,state.base*Math.pow(1.1,w-1));}
+function weekTarget(w){return PLAN.reduce((a,p)=>a+(p.run?runTarget(w,p):0),0);}
+function fmtKm(k){return k===FIVE_K?String(k):k.toFixed(1);}
 function cls(p){return p<=3?'g':p<=5?'a':'r';}
 function verdict(dd){
   if(dd.pd==null) return null;
@@ -71,8 +108,7 @@ function render(){
   document.getElementById('wk').innerHTML='Week '+state.week+'<small>of 8</small>';
   prev.disabled=state.week<=1;
   next.disabled=state.week>=8;
-  const t=targetKm();
-  document.getElementById('target').textContent='Run target '+t.toFixed(1)+' km';
+  document.getElementById('target').textContent=PLAN.filter(p=>p.run).map(p=>p.d+' '+fmtKm(runTarget(state.week,p))+' km').join(', ');
 
   const b=document.getElementById('banner');
   b.innerHTML = state.week>=4
@@ -87,8 +123,7 @@ function render(){
     const date=dateOf(state.week,i), isToday=date===today;
     const el=document.createElement('section');
     el.className='day'+(fin?' done':'')+(open.has(i)?' open':'')+(isToday?' today':'');
-    const km = p.run==='long'? (t*1.1).toFixed(1) : t.toFixed(1);
-    const sub = p.run ? p.s+', about '+km+' km' : p.s;
+    const sub = p.run==='5k' ? p.s+', 5 km' : p.run ? p.s+'. About '+fmtKm(runTarget(state.week,p))+' km' : p.s;
     const dlabel = date==null ? '' : '<small>'+(isToday?'Today':fmtShort(date))+'</small>';
     let html='<button class="head" data-head="'+i+'" aria-expanded="'+open.has(i)+'"><span class="dname">'+p.d+dlabel+'</span><span class="dtitle">'+p.t+'<span>'+sub+'</span></span><span class="tick" aria-hidden="true">✓</span></button><div class="body">';
     p.tasks.forEach((tk,j)=>{
@@ -130,10 +165,13 @@ function renderSummary(){
   if(!logged.length) msg='Log your runs to see what to do next week.';
   else{
     const worst=Math.max(...logged.map(r=>Math.max(r.pd,r.pn??0)));
-    if(worst<=3 && complete.length===runs.length) msg='All runs within limits. Next week: add about 10%.';
+    const shortDay=PLAN.find(p=>p.run==='short'), sd=DAY_FULL[PLAN.indexOf(shortDay)];
+    if(worst<=3 && complete.length===runs.length) msg=state.week>=8
+      ? 'All runs within limits. That’s the whole programme done.'
+      : 'All runs within limits. Next week: '+sd+' about '+fmtKm(runTarget(state.week+1,shortDay))+' km and the Saturday 5k.';
     else if(worst<=3) msg='So far, so good. Log every run, including next-morning pain, before deciding on next week.';
-    else if(worst<=5) msg='Some runs went over 3/10. Repeat this week’s distances next week rather than adding more.';
-    else msg='Pain hit '+worst+'/10 this week. Drop back to last week’s distances, and book a physio if it happens again.';
+    else if(worst<=5) msg='Some runs went over 3/10. Next week, repeat this '+sd+'’s distance rather than adding more, and run/walk the 5k.';
+    else msg='Pain hit '+worst+'/10 this week. Drop '+sd+' back to last week’s distance, walk or skip the 5k, and book a physio if it happens again.';
   }
   const lb=isoToNum(state.lastBackup);
   const nudge=backupDue()

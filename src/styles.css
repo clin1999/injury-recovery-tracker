@@ -148,6 +148,7 @@ header .step:focus-visible{outline-color:var(--accent-ink)}
 .band{fill:none;stroke:var(--accent);stroke-width:3.5;stroke-linecap:round;stroke-linejoin:round}
 .cable{stroke:var(--muted);stroke-width:2;stroke-dasharray:4 3}
 .ball{fill:var(--accent)}
+.rod{stroke:var(--muted);stroke-width:2.5;stroke-linecap:round}
 
 /* Week / Month tabs in the header. */
 .tabs{display:flex;gap:4px;width:max-content;margin:0 auto 12px;padding:3px;border-radius:999px;background:var(--track)}

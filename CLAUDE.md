@@ -1,6 +1,6 @@
 # ITB recovery tracker
 
-A mobile-first web app for tracking an 8-week return-to-running programme after iliotibial band (ITB) irritation. It is a personal tool for one user, opened on their phone at the gym and after runs.
+A mobile-first web app for tracking an 8-week return-to-running programme after iliotibial band (ITB) irritation, combined with the user's weekly gym, badminton and Saturday 5k routine. It is a personal tool for one user, opened on their phone at the gym and after runs.
 
 ## Background
 
@@ -44,7 +44,7 @@ The app is meant to be hosted on GitHub Pages (any static https host works) and 
 There is no live Garmin sync. Garmin's official API needs developer programme approval and a server. Instead the user exports a CSV from Garmin Connect (Activities, then Export CSV) and picks it in the settings card. The file is read in the browser and never uploaded.
 
 - Columns are found by header name: `Activity Type`, `Date` and `Distance` (case-insensitive, with a few fallbacks). Dates are read as `YYYY-MM-DD…`, falling back to `Date.parse`. Distances allow a decimal comma, thousands commas and `--`. Distances are taken as km unless the header says miles; the dialog has a km / miles switch.
-- Only activities whose type contains "run" count. Runs on the same date are added together. A run on a planned run day (Tue, Fri, Sun) goes there. A run on another day counts as the nearest run day in that week that the import hasn't already filled (ties go to the earlier day). Anything left over is reported as an extra run.
+- Only activities whose type contains "run" count. Runs on the same date are added together. A run on a planned run day (Tuesday or Saturday) goes there. A run on another day counts as the nearest run day in that week that the import hasn't already filled (ties go to the earlier day). Anything left over is reported as an extra run.
 - Runs before the start date or after week 8 are skipped and counted in the dialog. Nothing changes until the user confirms the preview.
 - Importing sets `km` (up to 2 decimals) and ticks the day's Run task. It never touches pain scores or other tasks. Re-importing the same file changes nothing.
 
@@ -59,17 +59,27 @@ Logs live only in the device's `localStorage`, so the settings card has Back up 
 
 ## Weekly plan
 
-Monday is Strength A (single-leg RDL, Bulgarian split squat, hip thrust, side plank). Tuesday, Friday and Sunday are easy runs, with Sunday about 10% longer. Wednesday is mobility (ball release, figure-4 stretch, hip flexor stretch). Thursday is Strength B (step-downs, cable hip abduction, lateral lunge, single-leg bridge). Saturday is rest.
+This is plan version 2 (`PLAN_VERSION` in `plan.js`). The user goes to the gym every day except Wednesday, when they play badminton, and runs a 5k on Saturday mornings. The ITB strength work stays on the two leg days, and the other gym days add upper body and core so every day has a full session.
 
-Each `PLAN` task is `[name, detail, [exerciseKeys]]`. The keys point into `EX` and drive the "How to" panel. An empty array means no How to button.
+- Monday, Legs A: single-leg RDL, Bulgarian split squat, hip thrust, side plank.
+- Tuesday, Push and short run: easy treadmill run first, then dumbbell bench press, seated shoulder press, push-ups and triceps pushdown.
+- Wednesday, Badminton: hip warm-up (band walks, clamshells) before, figure-4 and hip flexor stretches and ball release after.
+- Thursday, Legs B: step-downs, cable hip abduction, lateral lunge, single-leg bridge, dead bug.
+- Friday, Pull and core: rower warm-up, lat pulldown, seated cable row, face pull, dumbbell curl, Pallof press. Deliberately easy on the legs before Saturday.
+- Saturday, 5k run: warm-up, the run, stretches.
+- Sunday, Full body, lighter: rower or bike, incline dumbbell press, one-arm dumbbell row, farmer's carry, front plank. There's no full rest day, so Sunday stays light.
+
+Each `PLAN` task is `[name, detail, [exerciseKeys]]`. The keys point into `EX` and drive the "How to" panel. An empty array means no How to button. A run day has `run: 'short'` or `run: '5k'`, and its run task must be named `Run` (the Garmin import ticks it by name). Tasks are saved by position, so reordering or replacing tasks needs a new `PLAN_VERSION` and a step in `migrate()` in `app.js`. Adding a task at the end of a day is safe without one.
+
+`month.js` has a short column label per day in `SHORT`. Keep them to about 6 characters so the grid fits at phone width.
 
 ## Run targets and pain rules
 
 These rules are the core logic. Keep them consistent if you change anything.
 
-- The run target is `base × 1.1^(week − 1)`, where `base` defaults to 3 km and can be edited by the user. The Sunday target is 10% above that.
+- Saturday's target is a fixed 5 km from week 1 (the user chose the full 5k over building up to it, so the pain verdicts are what tell them to run/walk). Tuesday's short run is `base × 1.1^(week − 1)`, capped at 4 km so it stays short. `base` defaults to 3 km and is editable in settings. The weekly target in the Month tab is the sum of both.
 - Per run, the user logs distance, pain during (0–10) and pain next morning (0–10). The worst of the two decides the verdict: 0–3 means within limits, 4–5 means back off (halve the next run or switch to run/walk), and 6 or above means stop running for 2–3 days and see a physio if it repeats.
-- The weekly summary says to add about 10% only when every run that week is fully logged (pain during and next morning) and within limits. Otherwise it says to repeat or drop back.
+- The weekly summary says to move up to next week's Tuesday distance only when every run that week is fully logged (pain during and next morning) and within limits. At 4–5 it says to repeat Tuesday's distance and run/walk the 5k. At 6 or above it says to drop Tuesday back, walk or skip the 5k, and see a physio if it repeats.
 - From week 4 a banner prompts a physio visit if pain isn't clearly easing.
 
 ## Data
@@ -82,6 +92,7 @@ Everything is stored in `localStorage` under the key `itb-tracker-v1`:
   "base": 3,
   "start": "2026-11-02",
   "lastBackup": "2026-11-23",
+  "plan": 2,
   "weeks": {
     "w1": { "0": { "tasks": [true, false], "km": "3.2", "pd": 2, "pn": 1 } }
   }
@@ -89,6 +100,8 @@ Everything is stored in `localStorage` under the key `itb-tracker-v1`:
 ```
 
 Day keys are indices 0–6 (Monday to Sunday). `pd` and `pn` are pain during and pain next morning. `start` is the Monday of week 1 as an ISO date, or null when not set (it was added later, so older saves simply don't have it). Any date the user picks snaps back to that week's Monday. Logs are keyed by programme week and day, not by date, so changing the start date moves the dates, not the logs. All storage access is wrapped in try/catch, and the app must render correctly with empty storage. `lastBackup` is the local date of the last backup, or null. On load and on restore, `normalise()` clamps `week` to 1–8, falls back to 3 for a bad `base`, resets a non-object `weeks` and turns an invalid `start` or `lastBackup` into null, while every other saved field is kept. If you change the schema, bump the key or migrate the old data so the user's logs aren't lost.
+
+`plan` is the plan version the logs belong to. Saved data without it is plan 1 (Tue/Fri/Sun runs, Wednesday mobility, Saturday rest). `normalise()` ends with `migrate()`, which moves older logs onto the current plan. For plan 1 → 2, Mon, Tue and Thu ticks stay put, Wednesday's mobility ticks map onto the new stretches and ball release, and the old Sunday run (or Friday's, if Sunday had none) becomes Saturday's 5k log. Fri and Sun start empty. Before migrating stored data on load, the app keeps an untouched copy under `itb-tracker-v1-before-plan2`. Restoring an old backup goes through the same migration.
 
 ## Illustrations
 

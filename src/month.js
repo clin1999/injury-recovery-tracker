@@ -1,8 +1,9 @@
 // Month view: the 8-week programme shown as two 4-week blocks (weeks 1–4 and 5–8).
 // Reads saved logs without creating empty entries. Depends on globals from plan.js (PLAN)
-// and, at call time, from app.js (state, cls, targetFor).
+// and, at call time, from app.js (state, cls, weekTarget).
 
-const SHORT=['Str A','Run','Mob','Str B','Run','Rest','Long'];
+// Column labels for the grid, one per PLAN day. Keep them to about 6 characters so they fit at phone width.
+const SHORT=['Legs A','Push','Badm.','Legs B','Pull','5k','Full'];
 const DAY_FULL=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 
 function peek(w,i){
@@ -22,8 +23,7 @@ function weekStats(w){
     const d=peek(w,i); km+=parseFloat(d.km)||0;
     const wp=worstOf(d); if(wp!=null){logged++; worst=worst==null?wp:Math.max(worst,wp);}
   });
-  const t=targetFor(w);
-  return {done,km,runs,logged,worst,target:t*2+t*1.1};
+  return {done,km,runs,logged,worst,target:weekTarget(w)};
 }
 function painBadge(p){return '<span class="pb '+cls(p)+'">'+p+'</span>';}
 

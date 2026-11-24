@@ -73,7 +73,8 @@ async function handleRestoreFile(file){
   let when=isoToNum(data.lastBackup);
   if(when==null&&obj.exported){const d=new Date(obj.exported); if(!isNaN(d)) when=dayNum(d.getFullYear(),d.getMonth()+1,d.getDate());}
   restoreSheet(
-    '<p><b>Backup'+(when!=null?' from '+fmtDate(when):'')+':</b> '+statsText(statsOf(data))+'.</p>'
+    // Count on a migrated copy, so a backup from an older plan is summarised against today's days.
+    '<p><b>Backup'+(when!=null?' from '+fmtDate(when):'')+':</b> '+statsText(statsOf(normalise(JSON.parse(JSON.stringify(data)))))+'.</p>'
     +'<p><b>This device now:</b> '+statsText(statsOf(state))+'.</p>'
     +'<p>Restoring replaces everything on this device with the backup, and can’t be undone. If you might want what’s here now, back it up first.</p>',true);
 }
