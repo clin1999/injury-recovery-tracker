@@ -94,7 +94,7 @@ Everything is stored in `localStorage` under the key `itb-tracker-v1`:
   "lastBackup": "2026-11-23",
   "plan": 2,
   "weeks": {
-    "w1": { "0": { "tasks": [true, false], "km": "3.2", "pd": 2, "pn": 1 } }
+    "w1": { "0": { "tasks": [true, false], "km": "3.2", "pd": 2, "pn": 1, "sw": { "2": "gobletsq" } } }
   }
 }
 ```
@@ -105,7 +105,18 @@ Day keys are indices 0–6 (Monday to Sunday). `pd` and `pn` are pain during and
 
 ## Illustrations
 
-The pictures are inline SVG stick figures in a `0 0 200 112` viewBox, with the ground at y = 108. `F({h, s, p, kn, fn, en, hn, kf, ff, ef, hf})` draws a figure from joint coordinates: head, shoulder, hip, near knee/foot/elbow/hand, and optional far-side limbs, which are rendered at lower opacity. Props (bench, box, ball, band, cable) are plain SVG elements added alongside. Colours come from CSS variables, so the drawings follow the theme.
+The pictures are inline SVG illustrations of a person in a `0 0 200 112` viewBox, with the ground at y = 108. A pose is joint coordinates: `F({f, h, s, p, kn, fn, en, hn, kf, ff, ef, hf})` takes the head centre, shoulder, hip, near knee/foot/elbow/hand, and optional far-side limbs. `f` is 1 when the person faces right (the default) and -1 when they face left; it sets which way the face and toes point.
+
+`F()` builds the person from tapered capsules (`cap()`): skin, hair, T-shirt, shorts and trainers. It draws in layers, each outlined: far leg, far arm (both shaded darker), then the body, near leg and head, then the near arm on top. Props (bench, box, ball, band, cable, machines) are plain SVG elements drawn before the figure, except bands, which go on top. `DB(x, y)` draws a dumbbell. Colours are CSS variables (`--skin`, `--shirt`, `--shorts` and so on), so the drawings follow the theme. When you add a pose, check it at full size: a thick limb can hide the face or a prop.
+
+## Muscles and replacements
+
+- `MUS` in `plan.js` gives each exercise its main and supporting muscles (ids from `MUSCLE_NAMES`). `KIND` marks cardio and mobility exercises; everything else is strength.
+- How to shows the picture, a front-and-back muscle map (`muscleMap()`: main muscles in `--mus-p`, supporting in `--mus-s`) and a Main / Also list. Mobility exercises say Stretches instead of Main. The day list shows each exercise's main muscles under its sets.
+- Every task has a Replace button. Replacing is for that day only and is stored in the day's `sw` object: `sw[taskIndex]` is an `EX` key, or `{ "name": "..." }` for something the user typed (escaped before display, at most 60 characters). Ticks stay on the task, so progress and celebrations are unchanged. "Go back to ..." removes the entry.
+- `alternatives()` suggests exercises of the same kind that share a main muscle, ranked by how closely the main muscles match. The run, badminton and the bike warm-up are never suggested.
+- A replaced Run task means the run log is hidden, and that run is left out of the weekly summary and the Month tab totals and targets. A Garmin import for that day removes the replacement, because the person ran after all.
+- Exercises only used as replacements (goblet squat, leg press and so on) live in the `Object.assign(EX, {...})` block.
 
 ## Conventions
 
@@ -117,5 +128,5 @@ The pictures are inline SVG stick figures in a `0 0 200 112` viewBox, with the g
 
 - Data lives in one browser on one device, with no sync. Backups are manual: anything logged since the last backup is lost if the home-screen app is deleted or site data is cleared.
 - Garmin runs come in by CSV export only, and pain still has to be entered by hand.
-- The illustrations show position only. They are not photos or video.
+- The illustrations show one position per exercise. They are not photos or video, and the muscle maps are simplified.
 - The programme is general guidance, not a clinical prescription. Keep the physio prompts in place.

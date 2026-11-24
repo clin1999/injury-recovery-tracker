@@ -146,6 +146,7 @@ function applyGarmin(){
   gPlan.rows.filter(r=>r.change).forEach(r=>{
     const was=doneIn(r.w,r.i), d=dayAt(r.w,r.i), ri=runTaskIdx(r.i);
     d.km=r.km; if(ri>=0) d.tasks[ri]=true; n++;
+    if(d.sw&&ri>=0&&d.sw[ri]!=null){delete d.sw[ri]; if(!Object.keys(d.sw).length) delete d.sw;} // Garmin says they ran after all
     if(!was&&doneIn(r.w,r.i)) completed++;
   });
   save(); closeSheet(); render();

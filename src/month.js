@@ -15,15 +15,17 @@ function doneIn(w,i){const t=tasksOf(peek(w,i));return PLAN[i].tasks.every((_,j)
 function startedIn(w,i){const d=peek(w,i);return tasksOf(d).some(Boolean)||d.pd!=null||parseFloat(d.km)>0;}
 function worstOf(d){return d.pd==null?null:Math.max(d.pd,d.pn??0);}
 function weekStats(w){
-  let done=0,km=0,runs=0,logged=0,worst=null;
+  let done=0,km=0,runs=0,logged=0,worst=null,target=0;
   PLAN.forEach((p,i)=>{
     if(doneIn(w,i)) done++;
     if(!p.run) return;
-    runs++;
-    const d=peek(w,i); km+=parseFloat(d.km)||0;
+    const d=peek(w,i);
+    if(runReplaced(d,i)) return; // a run swapped for something else doesn't count towards running
+    runs++; target+=runTarget(w,p);
+    km+=parseFloat(d.km)||0;
     const wp=worstOf(d); if(wp!=null){logged++; worst=worst==null?wp:Math.max(worst,wp);}
   });
-  return {done,km,runs,logged,worst,target:weekTarget(w)};
+  return {done,km,runs,logged,worst,target};
 }
 function painBadge(p){return '<span class="pb '+cls(p)+'">'+p+'</span>';}
 
@@ -77,12 +79,12 @@ function renderMonth(month){
   // Week by week: distance against the week's target, and the worst pain logged.
   h+='<div class="card"><h2 class="cond">Week by week</h2>';
   weeks.forEach((w,n)=>{
-    const s=stats[n], pct=Math.min(100,s.km/s.target*100);
+    const s=stats[n], pct=s.target?Math.min(100,s.km/s.target*100):0;
     const ws=dateOf(w,0);
     h+='<div class="wrow'+(w===state.week?' now':'')+'"><b>Week '+w+'</b><span class="wmeta">'+(ws==null?'':fmtShort(ws)+', ')+s.done+' of 7 days</span>'
       +'<span class="wpain">'+(s.worst==null?'<span class="muted">No runs logged</span>':painBadge(s.worst)+'Worst pain')+'</span>'
       +'<div class="meter" aria-hidden="true"><span style="width:'+pct.toFixed(1)+'%"></span></div>'
-      +'<span class="wkm">'+s.km.toFixed(1)+' of '+s.target.toFixed(1)+' km</span></div>';
+      +'<span class="wkm">'+(s.runs?s.km.toFixed(1)+' of '+s.target.toFixed(1)+' km':'Runs replaced')+'</span></div>';
   });
   h+='<p class="trend">'+trendText(weeks)+'</p></div>';
 

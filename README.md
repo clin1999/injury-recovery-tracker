@@ -13,6 +13,8 @@ An 8-week, pain-guided return-to-running tracker with illustrated exercise instr
 | Sun | Lighter full body and easy cardio |
 
 - **Week tab:** tick off each day's exercises, log distance and pain for the two runs, and get a verdict on each run and on the week.
+- **How to:** an illustration of each exercise, a front-and-back muscle map and the muscles it works, plus step-by-step instructions.
+- **Replace:** swap any exercise for that day, picking from exercises that work the same muscles or typing what you did instead.
 - **Month tab:** see four weeks at a glance, with distance against target, worst pain per week and whether pain is easing.
 - **Garmin import:** fill in run distances from a Garmin Connect CSV export. The file is read on your phone and never uploaded.
 - **Backup and restore:** save your logs to a file and bring them back on a new phone.

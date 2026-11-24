@@ -83,6 +83,7 @@ function focusKey(){
   if(a.dataset.cell!=null) return '[data-cell="'+a.dataset.cell+'"]';
   if(a.dataset.head!=null) return '[data-head="'+a.dataset.head+'"]';
   if(a.dataset.how!=null) return '[data-how="'+a.dataset.how+'"]';
+  if(a.dataset.swap!=null) return '[data-swap="'+a.dataset.swap+'"]';
   if(a.dataset.f!=null) return '.chip[data-d="'+a.dataset.d+'"][data-f="'+a.dataset.f+'"][data-v="'+a.dataset.v+'"]';
   if(a.dataset.t!=null) return 'input[data-d="'+a.dataset.d+'"][data-t="'+a.dataset.t+'"]';
   return null;
@@ -127,14 +128,17 @@ function render(){
     const dlabel = date==null ? '' : '<small>'+(isToday?'Today':fmtShort(date))+'</small>';
     let html='<button class="head" data-head="'+i+'" aria-expanded="'+open.has(i)+'"><span class="dname">'+p.d+dlabel+'</span><span class="dtitle">'+p.t+'<span>'+sub+'</span></span><span class="tick" aria-hidden="true">✓</span></button><div class="body">';
     p.tasks.forEach((tk,j)=>{
-      const hk=i+'-'+j, hasHow=tk[2]&&tk[2].length, isOpen=howOpen.has(hk);
-      html+='<div class="task"><div class="trow"><label><input type="checkbox" data-d="'+i+'" data-t="'+j+'"'+(dd.tasks[j]?' checked':'')+'><span><b>'+tk[0]+'</b><small>'+tk[1]+'</small></span></label>';
+      const hk=i+'-'+j, t=taskShown(dd,tk,j), hasHow=t.keys.length>0, isOpen=hasHow&&howOpen.has(hk);
+      const mus=[...new Set(t.keys.flatMap(k=>EX[k].m?EX[k].m.p:[]))].slice(0,3);
+      html+='<div class="task'+(t.swapped?' swapped':'')+'"><div class="trow"><label><input type="checkbox" data-d="'+i+'" data-t="'+j+'"'+(dd.tasks[j]?' checked':'')+'><span><b>'+esc(t.name)+'</b><small>'+esc(t.detail)+'</small>'
+        +(mus.length?'<small class="mus">'+muscleText(mus)+'</small>':'')+'</span></label><div class="tbtns">';
       if(hasHow) html+='<button class="howbtn" data-how="'+hk+'" aria-expanded="'+isOpen+'">How to</button>';
-      html+='</div>';
-      if(hasHow&&isOpen) html+='<div class="how">'+howHTML(tk[2])+'</div>';
+      html+='<button class="swapbtn" data-swap="'+hk+'" aria-label="Replace '+esc(t.name)+'" title="Replace">'+SWAP_ICON+'</button></div></div>';
+      if(isOpen) html+='<div class="how">'+howHTML(t.keys)+'</div>';
       html+='</div>';
     });
-    if(p.run){
+    if(p.run&&runReplaced(dd,i)) html+='<div class="note">You replaced the run today, so there’s nothing to log. It won’t count towards this week’s running.</div>';
+    else if(p.run){
       html+='<div class="log"><label for="km'+i+'">Distance run (km)</label><input class="km" id="km'+i+'" data-km="'+i+'" type="number" step="0.1" min="0" inputmode="decimal" value="'+(dd.km??'')+'">';
       html+='<label>Pain during the run (0–10)</label><div class="chips">'+chips(i,'pd',dd.pd)+'</div>';
       html+='<label>Pain next morning (0–10)</label><div class="chips">'+chips(i,'pn',dd.pn)+'</div>';
@@ -155,14 +159,61 @@ function chips(i,f,val){
   let s='';for(let n=0;n<=10;n++){s+='<button class="chip '+cls(n)+(val===n?' on':'')+'" data-d="'+i+'" data-f="'+f+'" data-v="'+n+'" aria-pressed="'+(val===n)+'" aria-label="Pain '+n+'">'+n+'</button>';}
   return s;
 }
+// ---- Replacing an exercise ----
+// A task can be replaced for one day only, by another exercise (dd.sw[j] = EX key) or by something the user
+// types (dd.sw[j] = {name}). Ticks stay on the task, so progress and celebrations work the same.
+const SWAP_ICON='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8h13m-3-3 3 3-3 3M19 16H6m3-3-3 3 3 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function taskShown(dd,tk,j){
+  const r=dd.sw&&dd.sw[j];
+  if(typeof r==='string'&&EX[r]) return {name:EX[r].n,detail:'In place of '+tk[0]+'. '+tk[1],keys:[r],swapped:true};
+  if(r&&typeof r==='object'&&r.name) return {name:String(r.name),detail:'In place of '+tk[0],keys:[],swapped:true};
+  return {name:tk[0],detail:tk[1],keys:tk[2]||[],swapped:false};
+}
+function runReplaced(dd,i){const ri=runTaskIdx(i); return ri>=0&&!!(dd.sw&&dd.sw[ri]);}
+let swapping=null;
+function openSwap(i,j){
+  swapping={i,j};
+  const tk=PLAN[i].tasks[j], dd=dayData(i), cur=dd.sw&&dd.sw[j], keys=tk[2]||[];
+  const main=[...new Set(keys.flatMap(k=>EX[k].m?EX[k].m.p:[]))];
+  document.getElementById('sdlg-h').textContent='Replace '+tk[0];
+  let h=main.length?'<p class="muted">These work the same main muscles ('+muscleText(main).toLowerCase()+').</p>':'';
+  h+='<ul class="alts">'+alternatives(keys).map(k=>{
+    const e=EX[k];
+    return '<li><button class="alt" type="button" data-alt="'+k+'" aria-pressed="'+(cur===k)+'">'
+      +(e.pic?'<span class="athumb" aria-hidden="true">'+e.pic+'</span>':'')
+      +'<span class="atext"><b>'+e.n+'</b><small>'+muscleText(e.m.p)+'</small>'+(cur===k?'<small class="acur">Your choice today</small>':'')+'</span></button></li>';
+  }).join('')+'</ul>';
+  h+='<form class="other" id="sother"><label for="sothertxt">Something else</label><div class="orow">'
+    +'<input id="sothertxt" class="txt" maxlength="60" autocomplete="off" placeholder="For example, leg press 3 × 10" value="'+(cur&&typeof cur==='object'?esc(cur.name):'')+'">'
+    +'<button class="btn" type="submit">Use this</button></div></form>';
+  if(cur) h+='<button class="link" id="sreset" type="button">Go back to '+tk[0]+'</button>';
+  document.getElementById('sdlg-body').innerHTML=h;
+  openSheet('sdlg');
+}
+function applySwap(val){
+  if(!swapping) return;
+  const {i,j}=swapping, dd=dayData(i);
+  if(val==null){ if(dd.sw){delete dd.sw[j]; if(!Object.keys(dd.sw).length) delete dd.sw;} }
+  else{ dd.sw=dd.sw||{}; dd.sw[j]=val; }
+  howOpen.delete(i+'-'+j);
+  save(); closeSheet('sdlg'); render();
+  const b=document.querySelector('[data-swap="'+i+'-'+j+'"]'); if(b) b.focus({preventScroll:true});
+  const tk=PLAN[i].tasks[j];
+  toast(val==null?'Back to '+tk[0]+'.':'Swapped in '+(typeof val==='string'?EX[val].n:val.name)+' for today.');
+  swapping=null;
+}
+
 function renderSummary(){
-  const runs=PLAN.map((p,i)=>p.run?dayData(i):null).filter(Boolean);
+  // Runs replaced with something else don't count towards the week's running.
+  const runs=PLAN.map((p,i)=>p.run&&!runReplaced(dayData(i),i)?dayData(i):null).filter(Boolean);
   const logged=runs.filter(r=>r.pd!=null);
   // A run only counts as fully logged once next-morning pain is in, matching the per-run verdict.
   const complete=logged.filter(r=>r.pn!=null);
   const total=runs.reduce((a,r)=>a+(parseFloat(r.km)||0),0);
   let msg;
-  if(!logged.length) msg='Log your runs to see what to do next week.';
+  if(!runs.length) msg='You replaced both runs this week, so start next week at the same distances.';
+  else if(!logged.length) msg='Log your runs to see what to do next week.';
   else{
     const worst=Math.max(...logged.map(r=>Math.max(r.pd,r.pn??0)));
     const shortDay=PLAN.find(p=>p.run==='short'), sd=DAY_FULL[PLAN.indexOf(shortDay)];
@@ -252,6 +303,12 @@ document.addEventListener('change',e=>{
   else if(t.id==='rfile'){const f=t.files&&t.files[0]; t.value=''; handleRestoreFile(f);}
   else if(t.name==='gunit'){gData.miles=t.value==='mi'; showGarmin(); document.querySelector('input[name="gunit"][value="'+t.value+'"]').focus();}
 });
+document.addEventListener('submit',e=>{
+  if(e.target.id!=='sother') return;
+  e.preventDefault();
+  const name=document.getElementById('sothertxt').value.trim();
+  if(name) applySwap({name:name.slice(0,60)}); else document.getElementById('sothertxt').focus();
+});
 function renderSettings(){
   document.getElementById('base').value=state.base;
   const s=startNum(), si=document.getElementById('start');
@@ -280,6 +337,10 @@ document.addEventListener('click',e=>{
   if(e.target.id==='backup'||e.target.id==='backup-now'){backUp(); return;}
   if(e.target.id==='rok'){applyRestore(); return;}
   if(e.target.id==='rcancel'){closeSheet('rdlg'); return;}
+  if(e.target.id==='scancel'){swapping=null; closeSheet('sdlg'); return;}
+  if(e.target.id==='sreset'){applySwap(null); return;}
+  const sb=e.target.closest('.swapbtn'); if(sb){openSwap(...sb.dataset.swap.split('-').map(Number)); return;}
+  const alt=e.target.closest('.alt'); if(alt){applySwap(alt.dataset.alt); return;}
   const cell=e.target.closest('.cell');
   if(cell){openDay(...cell.dataset.cell.split('-').map(Number)); return;}
   const hb=e.target.closest('.howbtn');
