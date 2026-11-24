@@ -70,6 +70,14 @@
         <p>The file is read on this device and isn’t uploaded anywhere. Distances and dates come across. Pain scores don’t, so add those yourself.</p>
       </details>
     </div>
+    <div class="field">
+      <span class="flabel">Backup</span>
+      <div class="btnrow">
+        <button class="btn" id="backup" type="button">Back up</button>
+        <label class="btn ghost filebtn" id="rpick"><input type="file" id="rfile" class="sr" accept=".json,application/json" aria-describedby="bnote">Restore</label>
+      </div>
+      <small id="bnote"></small>
+    </div>
     <div class="field"><button class="link" id="reset">Clear this week</button></div>
   </section>
 </div>
@@ -85,10 +93,20 @@
   </div>
 </dialog>
 
+<dialog class="sheet" id="rdlg" aria-labelledby="rdlg-h">
+  <h2 class="cond" id="rdlg-h">Restore from backup</h2>
+  <div id="rdlg-body"></div>
+  <div class="sheet-actions">
+    <button class="btn ghost" id="rcancel" type="button">Cancel</button>
+    <button class="btn" id="rok" type="button">Replace with backup</button>
+  </div>
+</dialog>
+
 <script src="src/plan.js"></script>
 <script src="src/dates.js"></script>
 <script src="src/month.js"></script>
 <script src="src/garmin.js"></script>
+<script src="src/backup.js"></script>
 <script src="src/app.js"></script>
 </body>
 </html>

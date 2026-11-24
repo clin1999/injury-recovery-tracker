@@ -8,7 +8,7 @@ ITB irritation usually shows up as pain on the outside of the knee that builds d
 
 ## Running it
 
-No build step and no dependencies. Open `index.html` in a browser, or serve the folder (for example `python -m http.server 8417`). Scripts are classic `<script>` tags, not ES modules, so the page also works from `file://`. Load order matters: `plan.js`, `dates.js`, `month.js`, `garmin.js`, then `app.js`. The only external resource is Google Fonts (Barlow and Barlow Condensed), with system fallbacks.
+No build step and no dependencies. Open `index.html` in a browser, or serve the folder (for example `python -m http.server 8417`). Scripts are classic `<script>` tags, not ES modules, so the page also works from `file://`. Load order matters: `plan.js`, `dates.js`, `month.js`, `garmin.js`, `backup.js`, then `app.js`. The only external resource is Google Fonts (Barlow and Barlow Condensed), with system fallbacks.
 
 ## Hosting and installing
 
@@ -27,7 +27,8 @@ The app is meant to be hosted on GitHub Pages (any static https host works) and 
 - `src/plan.js` holds the content: `EX` (exercise library: name, SVG picture, steps, form cue), `PLAN` (seven days of tasks) and the SVG helpers.
 - `src/dates.js` holds the date helpers. Dates are whole-day numbers counted in UTC, so daylight saving can't move a run onto the wrong day.
 - `src/month.js` renders the Month tab. It reads logs with `peek()`, which never creates empty entries.
-- `src/garmin.js` parses a Garmin Connect CSV, plans the import and runs the preview dialog.
+- `src/garmin.js` parses a Garmin Connect CSV, plans the import and runs the preview dialog. It also holds `openSheet` / `closeSheet`, shared by both dialogs.
+- `src/backup.js` handles backup and restore.
 - `src/app.js` holds state, persistence, rendering, settings, the day-complete celebration, events and service worker registration.
 
 ## Views
@@ -46,6 +47,15 @@ There is no live Garmin sync. Garmin's official API needs developer programme ap
 - Only activities whose type contains "run" count. Runs on the same date are added together. A run on a planned run day (Tue, Fri, Sun) goes there. A run on another day counts as the nearest run day in that week that the import hasn't already filled (ties go to the earlier day). Anything left over is reported as an extra run.
 - Runs before the start date or after week 8 are skipped and counted in the dialog. Nothing changes until the user confirms the preview.
 - Importing sets `km` (up to 2 decimals) and ticks the day's Run task. It never touches pain scores or other tasks. Re-importing the same file changes nothing.
+
+## Backup and restore
+
+Logs live only in the device's `localStorage`, so the settings card has Back up and Restore.
+
+- A backup is `itb-tracker-backup-YYYY-MM-DD.json` containing `{"app": "itb-tracker", "version": 1, "exported": <ISO time>, "data": <the saved state>}`.
+- On a touch device that can share files, Back up opens the share sheet (Save to Files, Drive, email). Otherwise it downloads the file. Cancelling the share sheet leaves `lastBackup` unchanged.
+- Restore accepts the wrapper or bare saved data with a `weeks` object. It shows the backup's and the device's totals side by side and replaces everything only after confirmation. The restored data goes through `normalise()`, the same repair used on load.
+- The weekly summary shows a reminder when there is logged data and no backup in the last 7 days.
 
 ## Weekly plan
 
@@ -71,13 +81,14 @@ Everything is stored in `localStorage` under the key `itb-tracker-v1`:
   "week": 1,
   "base": 3,
   "start": "2026-11-02",
+  "lastBackup": "2026-11-23",
   "weeks": {
     "w1": { "0": { "tasks": [true, false], "km": "3.2", "pd": 2, "pn": 1 } }
   }
 }
 ```
 
-Day keys are indices 0–6 (Monday to Sunday). `pd` and `pn` are pain during and pain next morning. `start` is the Monday of week 1 as an ISO date, or null when not set (it was added later, so older saves simply don't have it). Any date the user picks snaps back to that week's Monday. Logs are keyed by programme week and day, not by date, so changing the start date moves the dates, not the logs. All storage access is wrapped in try/catch, and the app must render correctly with empty storage. On load, `week` is clamped to 1–8, a bad `base` falls back to 3, a non-object `weeks` is reset and an invalid `start` becomes null, while every other saved field is kept. If you change the schema, bump the key or migrate the old data so the user's logs aren't lost.
+Day keys are indices 0–6 (Monday to Sunday). `pd` and `pn` are pain during and pain next morning. `start` is the Monday of week 1 as an ISO date, or null when not set (it was added later, so older saves simply don't have it). Any date the user picks snaps back to that week's Monday. Logs are keyed by programme week and day, not by date, so changing the start date moves the dates, not the logs. All storage access is wrapped in try/catch, and the app must render correctly with empty storage. `lastBackup` is the local date of the last backup, or null. On load and on restore, `normalise()` clamps `week` to 1–8, falls back to 3 for a bad `base`, resets a non-object `weeks` and turns an invalid `start` or `lastBackup` into null, while every other saved field is kept. If you change the schema, bump the key or migrate the old data so the user's logs aren't lost.
 
 ## Illustrations
 
@@ -91,7 +102,7 @@ The pictures are inline SVG stick figures in a `0 0 200 112` viewBox, with the g
 
 ## Known limitations
 
-- Data lives in one browser on one device. There is no sync or backup export, so deleting the home-screen app or clearing site data loses the logs.
+- Data lives in one browser on one device, with no sync. Backups are manual: anything logged since the last backup is lost if the home-screen app is deleted or site data is cleared.
 - Garmin runs come in by CSV export only, and pain still has to be entered by hand.
 - The illustrations show position only. They are not photos or video.
 - The programme is general guidance, not a clinical prescription. Keep the physio prompts in place.

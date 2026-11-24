@@ -1,19 +1,20 @@
 // State, localStorage persistence, rendering and event handling.
 // Depends on globals from plan.js (EX, PLAN, howHTML, howOpen), dates.js, month.js (renderMonth, DAY_FULL)
-// and garmin.js (handleGarminFile, showGarmin, applyGarmin).
+// garmin.js (handleGarminFile, showGarmin, applyGarmin) and backup.js (backUp, handleRestoreFile, applyRestore).
 
-let state={week:1,base:3,start:null,weeks:{}};
-try{
-  const s=JSON.parse(localStorage.getItem(KEY));
-  if(s&&typeof s==='object'){
-    // Keep every saved log, but repair top-level fields so bad data can't break rendering.
-    state=Object.assign(state,s);
-    const w=parseInt(state.week,10); state.week=w>=1&&w<=8?w:1;
-    const b=parseFloat(state.base); state.base=b>0?b:3;
-    if(!state.weeks||typeof state.weeks!=='object') state.weeks={};
-    if(isoToNum(state.start)==null) state.start=null;
-  }
-}catch(e){}
+// Keep every saved log, but repair top-level fields so bad data can't break rendering.
+// Used when loading from storage and when restoring a backup.
+function normalise(s){
+  const st=Object.assign({week:1,base:3,start:null,lastBackup:null,weeks:{}},s&&typeof s==='object'?s:{});
+  const w=parseInt(st.week,10); st.week=w>=1&&w<=8?w:1;
+  const b=parseFloat(st.base); st.base=b>0?b:3;
+  if(!st.weeks||typeof st.weeks!=='object'||Array.isArray(st.weeks)) st.weeks={};
+  if(isoToNum(st.start)==null) st.start=null;
+  if(isoToNum(st.lastBackup)==null) st.lastBackup=null;
+  return st;
+}
+let state=normalise(null);
+try{state=normalise(JSON.parse(localStorage.getItem(KEY)));}catch(e){}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){}}
 // dayAt creates the entry if it's missing; use peek() from month.js to read without creating.
 function dayAt(wn,i){
@@ -134,7 +135,11 @@ function renderSummary(){
     else if(worst<=5) msg='Some runs went over 3/10. Repeat this week’s distances next week rather than adding more.';
     else msg='Pain hit '+worst+'/10 this week. Drop back to last week’s distances, and book a physio if it happens again.';
   }
-  document.getElementById('summary').innerHTML='<h2 class="cond">This week</h2><div>'+total.toFixed(1)+' km run across '+logged.length+' logged run'+(logged.length===1?'':'s')+'.</div><div style="margin-top:6px">'+msg+'</div>';
+  const lb=isoToNum(state.lastBackup);
+  const nudge=backupDue()
+    ?'<div class="nudge">'+(lb==null?'You haven’t backed up your logs yet.':'Last backup was '+fmtDate(lb)+'.')+' <button class="link" id="backup-now" type="button">Back up now</button></div>'
+    :'';
+  document.getElementById('summary').innerHTML='<h2 class="cond">This week</h2><div>'+total.toFixed(1)+' km run across '+logged.length+' logged run'+(logged.length===1?'':'s')+'.</div><div style="margin-top:6px">'+msg+'</div>'+nudge;
 }
 // Celebrate a day when its last task is ticked, and the whole week when all 7 days are done.
 function reducedMotion(){try{return matchMedia('(prefers-reduced-motion: reduce)').matches;}catch(e){return false;}}
@@ -148,7 +153,7 @@ function toast(msg){
   void t.offsetWidth; // restart the slide-in if a toast is already showing
   t.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer=setTimeout(()=>t.classList.remove('show'),2600);
+  toastTimer=setTimeout(()=>t.classList.remove('show'),Math.max(2600,msg.length*60)); // longer messages stay up longer
 }
 function burst(x,y,n,dMin,dMax,opts){
   opts=opts||{};
@@ -206,6 +211,7 @@ document.addEventListener('change',e=>{
     save(); render();
   }
   else if(t.id==='gfile'){const f=t.files&&t.files[0]; t.value=''; handleGarminFile(f);}
+  else if(t.id==='rfile'){const f=t.files&&t.files[0]; t.value=''; handleRestoreFile(f);}
   else if(t.name==='gunit'){gData.miles=t.value==='mi'; showGarmin(); document.querySelector('input[name="gunit"][value="'+t.value+'"]').focus();}
 });
 function renderSettings(){
@@ -225,11 +231,17 @@ function renderSettings(){
   document.getElementById('gnote').textContent=s==null
     ?'Set a programme start date first.'
     :'Fills in run distances from a Garmin Connect export.';
+  const lb=isoToNum(state.lastBackup);
+  document.getElementById('bnote').textContent=(lb==null?'Not backed up yet.':'Last backed up '+fmtDate(lb)+'.')
+    +' Your logs are stored only on this device, so keep a backup before you change or reset your phone.';
 }
 document.addEventListener('click',e=>{
   if(e.target.id==='gotoday'){openDay(weekOfToday(),Math.max(0,Math.min(6,todayNum()-dateOf(weekOfToday(),0)))); return;}
   if(e.target.id==='gok'){applyGarmin(); return;}
-  if(e.target.id==='gcancel'){closeSheet(); return;}
+  if(e.target.id==='gcancel'){closeSheet('gdlg'); return;}
+  if(e.target.id==='backup'||e.target.id==='backup-now'){backUp(); return;}
+  if(e.target.id==='rok'){applyRestore(); return;}
+  if(e.target.id==='rcancel'){closeSheet('rdlg'); return;}
   const cell=e.target.closest('.cell');
   if(cell){openDay(...cell.dataset.cell.split('-').map(Number)); return;}
   const hb=e.target.closest('.howbtn');
@@ -277,12 +289,12 @@ function openDay(w,i){
   }
 }
 document.getElementById('reset').onclick=()=>{if(confirm('Clear everything logged for week '+state.week+'?')){state.weeks['w'+state.week]={};save();render();}};
-// Tap the backdrop (outside the dialog box) to close it.
-document.getElementById('gdlg').addEventListener('click',e=>{
-  if(e.target.id!=='gdlg') return;
-  const r=e.target.getBoundingClientRect();
-  if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom) closeSheet();
-});
+// Tap the backdrop (outside the dialog box) to close a dialog.
+document.querySelectorAll('dialog.sheet').forEach(d=>d.addEventListener('click',e=>{
+  if(e.target!==d) return;
+  const r=d.getBoundingClientRect();
+  if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom) closeSheet(d.id);
+}));
 render();
 
 // Offline support once hosted (GitHub Pages is https). Skipped on file:// and, so edits show up straight away,

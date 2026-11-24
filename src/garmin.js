@@ -79,9 +79,9 @@ function planImport(acts,miles){
 }
 
 let gData=null, gPlan=null;
-function gSheet(){return document.getElementById('gdlg');}
-function openSheet(){const d=gSheet(); if(!d.open){ if(d.showModal) d.showModal(); else d.setAttribute('open',''); }}
-function closeSheet(){const d=gSheet(); if(d.close) d.close(); else d.removeAttribute('open');}
+// Shared by the Garmin and restore dialogs.
+function openSheet(id){const d=document.getElementById(id||'gdlg'); if(!d.open){ if(d.showModal) d.showModal(); else d.setAttribute('open',''); }}
+function closeSheet(id){const d=document.getElementById(id||'gdlg'); if(d.close) d.close(); else d.removeAttribute('open');}
 
 function garminError(msg){
   gData=null;
